@@ -61,41 +61,6 @@ def FilterGA(feature, target):
 
     return selected_features
 
-def WrapperGA(data):
-    """
-        RFE (Recursive Feature Elimination): is used to iteratively remove features and determine the best subset.
-            A common wrapper method that iteratively removes the least important features.
-
-        cross-validation: use it to evaluate the model's performance for each subset of features. 
-            This ensures that the selected number of features generalizes well.
-    """
-    X = data.iloc[:,:-1]  
-    Y = data.iloc[:,-1]
-
-    # Initialize the model
-    model = LogisticRegression(max_iter=10000, solver='liblinear')
-
-    # Evaluate different numbers of features
-    best_score = 0
-    best_num_features = 0
-
-    for num_features in range(1, X.shape[1] + 1):
-        rfe = RFE(estimator=model, n_features_to_select=num_features)
-        X_reduced = rfe.fit_transform(X, Y)
-    
-        # Cross-validation
-        scores = cross_val_score(model, X_reduced, Y, cv=5)
-        average_score = np.mean(scores)
-        
-        if average_score > best_score:
-            best_score = average_score
-            best_num_features = num_features
-            best_features = rfe.support_
-
-    selected_feature_dataset = data[:][X.columns[best_features]]
-
-    return selected_feature_dataset
-
 def classfier(dataset_features, dataset_target, individual):
 
     selected_features = [index for index in range(len(individual)) if individual[index] == 1]
@@ -243,6 +208,7 @@ def main():
     dataset = read_data(columns_file, data_file)
 
     for i in range(run_iteration):
+        print(f'Run {i} in progress . . .')
         start_time = time.time()  # Start timer for this run
 
         # Feature Selection and data transformation
@@ -304,6 +270,7 @@ def main():
     std_acc = np.std(acc_li)
 
     # Print out summary table 
+    comp_time_li = [round(x, 2) for x in comp_time_li]
     comp_time_summary = print_summary(comp_time_li, round(mean_comp_time, 2), round(std_comp_time, 2))
     acc_summary = print_summary(acc_li, round(mean_acc, 2), round(std_acc, 2))
     print()
