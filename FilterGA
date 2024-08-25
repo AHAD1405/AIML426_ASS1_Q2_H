@@ -272,6 +272,7 @@ def main():
     # Print out summary table 
     comp_time_li = [round(x, 2) for x in comp_time_li]
     comp_time_summary = print_summary(comp_time_li, round(mean_comp_time, 2), round(std_comp_time, 2))
+    acc_li = [round(x, 2) for x in acc_li]
     acc_summary = print_summary(acc_li, round(mean_acc, 2), round(std_acc, 2))
     print()
     print('Accuracy Table:\n', acc_summary)
