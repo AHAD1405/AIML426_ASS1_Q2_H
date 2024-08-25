@@ -309,6 +309,7 @@ def main():
     print()
     print('Accuracy Table:\n', acc_summary)
     print(f'Competional Time Table:\n {comp_time_summary}')
+    ##
 
     
 if __name__ == "__main__":
