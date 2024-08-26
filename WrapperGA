@@ -1,0 +1,283 @@
+import random
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
+from sklearn.feature_selection import RFE
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+import pandas as pd
+import math
+import time
+import warnings
+
+# Disable terminal warnings
+#warnings.filterwarnings("ignore")
+
+def read_data(column_file_name, data_file_name):
+    """
+        Extract data from file and return datset
+    """
+    # Extract Column names --------------------------------------
+    columns_name = []
+    with open(column_file_name,'r') as columns_file: 
+        columns = columns_file.readlines()
+        for idx, line in enumerate(columns): # extract values
+            if idx == 0: continue
+            x = line.split()
+            columns_name.append(x[0])
+    columns_name.append('class')   # add column for target column
+
+    # Extract data from file and create dataset -----------------
+    dataset = pd.read_csv(data_file_name)
+    dataset.columns = columns_name
+
+    return dataset
+
+def initialize_population(pop_size, num_features, seed_):
+    random.seed(seed_)
+    return [[random.randint(0, 1) for _ in range(num_features)] for _ in range(pop_size)]
+
+def WrapperGA(data, seed_):
+    """
+        RFE (Recursive Feature Elimination): is used to iteratively remove features and determine the best subset.
+            A common wrapper method that iteratively removes the least important features.
+
+        cross-validation: use it to evaluate the model's performance for each subset of features. 
+            This ensures that the selected number of features generalizes well.
+    """
+    X = data.iloc[:,:-1]  
+    Y = data.iloc[:,-1]
+
+    # Initialize the model
+    model = DecisionTreeClassifier(random_state= seed_)
+
+    # Evaluate different numbers of features
+    best_score = 0
+    best_num_features = 0
+
+    for num_features in range(1, X.shape[1] + 1):
+        rfe = RFE(estimator=model, n_features_to_select=num_features)
+        X_reduced = rfe.fit_transform(X, Y)
+        scores = cross_val_score(model, X_reduced, Y, cv=5)
+        average_score = np.mean(scores)
+        
+        if average_score > best_score:
+            best_score = average_score
+            best_num_features = num_features
+            best_features = rfe.support_
+
+    selected_feature = X.columns[best_features]
+
+    return selected_feature
+
+def classfier(dataset_features, dataset_target, individual):
+
+    selected_features = [index for index in range(len(individual)) if individual[index] == 1]
+    if len(selected_features) == 0:
+        return 0
+
+    dataset_selected = dataset_features[:, selected_features]
+
+     # Split data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(dataset_selected, dataset_target, test_size=0.4, random_state=42)
+
+    # CLASSIFICATION: Apply SVM classification for FilterGA and WrapperGA
+    svm = SVC(kernel='linear', C=1.0)
+    svm.fit(X_train, y_train)
+
+    # Perform cross-validation on the training set
+    scores = cross_val_score(svm, X_train, y_train, cv=5, scoring='accuracy')
+
+    # Return the average accuracy across folds
+    return scores.mean()
+
+def crossover(parent1, parent2, crossover_ratio):
+    """
+        Crossover operation based on crossover ratio:The crossover ratio allows you to control the balance between exploration and exploitation in the search process.
+            as it introduces more new genetic information into the population.
+        
+        Parameters:
+        parent1 (list): The first parent
+        parent2 (list): The second parent
+        crossover_ratio (float): The proportion of genes to exchange (between 0 and 1)
+
+        Returns:
+        child1 (list): The first child
+        child2 (list): The second child
+    """
+    # Calculate the crossover point based on the crossover ratio
+    child1 = parent1.copy()
+    child2 = parent2.copy()
+
+    # Calculate the crossover point based on the crossover ratio
+    crossover_point = int(len(parent1) * crossover_ratio) # which means that the genes up to this point will be exchanged between the parents
+
+    # Exchange genes between the two parents
+    child1[:crossover_point] = parent2[:crossover_point]
+    child2[:crossover_point] = parent1[:crossover_point]
+
+    return child1, child2
+
+def mutate_individual(individual, mutation_prob):
+    """
+        Probability-based mutation: Introduce a probability parameter that controls the likelihood of a bit being flipped.
+        This can help to control the mutation rate and prevent too many or too few mutations
+
+        Parameters:
+        individual (list): The individual to be mutated
+        mutation_probability (float): The probability of a bit being flipped
+
+        Returns:
+        individual (list): The mutated individual
+    """
+    for i in range(len(individual)):
+        if random.random() < mutation_prob:
+            individual[i] = 1 - individual[i]  # Flip the bit
+    return individual
+
+def tournament_selection(fs_dataset, fs_population, population_size, tournament_size, fitness_values):
+    selected_population = []
+    for _ in range(population_size):
+        tournament = random.sample(range(len(fs_population)), tournament_size)
+        fittest_index = max(tournament, key=lambda x: fitness_values[x])
+        selected_population.append(fs_population[fittest_index])
+    return selected_population
+
+def print_summary(FilterGA, mean_, std_):
+    """
+        Creates a pandas DataFrame table with the given data.
+
+    Parameters:
+    FilterGA (list or array-like): The data for the 'FilterGA' column.
+    mean_ (float): The mean value to be added as a separate row.
+    std_ (float): The standard deviation value to be added as a separate row.
+
+    Returns:
+    The table has two columns: an empty string column and a 'FilterGA' column. The first column contains the strings 'Run 1' to 'Run 5', 
+    and the mean and standard deviation labels. The 'FilterGA' column contains the corresponding data, mean, and standard deviation values.
+
+    """
+    # First column
+    first_column = ['Run 1','Run 2','Run 3','Run 4','Run 5']
+
+    # Create a dictionary with the two lists as values
+    data = {'': first_column, 'FilterGA': FilterGA}
+
+    # Create a pandas DataFrame from the dictionary
+    data_table = pd.DataFrame(data)
+
+    # Create a new DataFrame with the mean and concatenate it with (data_table)
+    mean_row = pd.DataFrame({'': ['Mean'], 'FilterGA': [mean_]})
+    data_table = pd.concat([data_table, mean_row], ignore_index=True)
+
+    # Create a new DataFrame with the stander deviation and concatenate it with (data_table)
+    std_row = pd.DataFrame({'': ['STD'], 'FilterGA': [std_] })
+    data_table = pd.concat([data_table, std_row], ignore_index=True)
+
+    return data_table
+
+def main():
+    # Configure Variable 
+    run_iteration = 5
+    population_size = 50
+    seed_ = [20, 30, 40, 50, 60]
+    """
+        This parameter controls the probability of crossover occurring between two parents. 
+        It is a value between 0 and 1 that determines the likelihood of crossover happening
+        When crossover_probability is high (e.g., 0.8), it means that crossover is more likely to occur, and when it's low (e.g., 0.2), 
+        crossover is less likely to occur
+    """
+    crossover_probability = [0.3, 0.5, 0.6, 0.7, 0.7]
+    """
+        This parameter controls the proportion of genes to exchange between two parents during crossover. 
+        It is a value between 0 and 1 that determines the crossover point. When crossover_ratio is high (e.g., 0.7), 
+        it means that a larger proportion of genes will be exchanged between the parents, 
+        and when it's low (e.g., 0.3), a smaller proportion of genes will be exchanged
+    """
+    crossover_ratio = 0.5
+    mutation_rate = [0.05, 0.06, 0.08, 0.08, 0.1]
+    """
+        parameter controls the number of individuals participating in each tournament. A larger tournament size increases the selection pressure, 
+        while a smaller size introduces more randomness. 
+        A common choice is to set tournament_size to 2 or 3
+    """
+    tournament_size = 3
+    elitism_no = 2  # number of the best individuals to be preserved in the next generation
+    comp_time_li = []
+    acc_li = []
+
+    # load data
+    data_file = 'sonar.data' # wbcd.data  , sonar.data
+    columns_file = 'sonar.names' # wbcd.names , sonar.names
+    dataset = read_data(columns_file, data_file)
+
+    for run in range(run_iteration):
+        print(f'Run {run} in progress . . .')
+        start_time = time.time()  # Start timer for this run
+
+        # Feature Selection and data transformation
+        # DATA TASFORMATION: create new dataset that contain only selected feature
+        feature_selected = WrapperGA(dataset, seed_[run])
+        fs_dataset = dataset[:][list(feature_selected) + ['class']]
+
+        # INITIALIZATION: Initialize the population 
+        fs_population = initialize_population(population_size, fs_dataset.iloc[:,:-1].shape[1], seed_[run])
+
+        for gen in range(20):
+            fitness_values = [classfier(fs_dataset.iloc[:,:-1].values, fs_dataset.iloc[:,-1].values, individual) for individual in fs_population]
+        
+            # Elisim
+            #elite_idx = np.argsort(fitness_values)[::-1][:elitism_no]
+            #best_individuals = [fs_population[i] for i in elite_idx]
+
+            # TOURNAMENT SELECTION
+            fs_population = tournament_selection(fs_dataset, fs_population, population_size, tournament_size, fitness_values)
+
+            # REPRODUCTION & CROSSOVER: # Apply crossover and mutation to Create a new population by reproducing the selected individuals
+            new_population = []
+            while len(new_population) < population_size:
+                parent1, parent2 = random.sample(fs_population, 2)
+                if random.random() < crossover_probability[run]:
+                    child1, child2 = crossover(parent1, parent2, crossover_ratio)
+                    new_population.extend([child1, child2])
+                    new_population.append(mutate_individual(child1, mutation_rate[run]))
+                    new_population.append(mutate_individual(child2, mutation_rate[run]))
+                else:
+                    new_population.extend([parent1, parent2])
+
+            # Ensure the N best individuals are carried over to the next generation
+            #fs_population[-elitism_no:] = best_individuals
+            
+            # REPLACEMENT
+            #fs_population = fs_population[:population_size]
+            fs_population = new_population
+
+            # Calculate the fitness values for the new population and get the best value
+            fitness_values_new_pop = [classfier(fs_dataset.iloc[:,:-1].values, fs_dataset.iloc[:,-1].values, individual) for individual in fs_population]
+            
+        end_time = time.time()  # End timer for this run
+        comp_time = end_time - start_time
+        comp_time_li.append(comp_time)
+        acc_li.append(max(fitness_values_new_pop))
+    
+    # claulate mean for computation time and accuracy
+    mean_comp_time = np.mean(comp_time_li)
+    mean_acc = np.mean(acc_li)
+
+    # claculate standerd deviation for computation time and accuracy
+    std_comp_time = np.std(comp_time_li)
+    std_acc = np.std(acc_li)
+
+    # Print out summary table 
+    comp_time_li = [round(x, 5) for x in comp_time_li]
+    comp_time_summary = print_summary(comp_time_li, round(mean_comp_time, 2), round(std_comp_time, 2))
+    acc_li = [round(x, 5) for x in acc_li]
+    acc_summary = print_summary(acc_li, round(mean_acc, 2), round(std_acc, 2))
+
+    print('Accuracy Table:\n', acc_summary)
+    print(f'Competional Time Table:\n {comp_time_summary}')
+
+if __name__ == "__main__":
+    main()
