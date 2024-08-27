@@ -73,11 +73,12 @@ def classfier(dataset_features, dataset_target, individual):
     X_fs, X_fs_test, y_fs, y_fs_test = train_test_split(dataset_selected, dataset_target, test_size=0.4, random_state=42)
 
     # CLASSIFICATION: Apply SVM classification for FilterGA and WrapperGA
-    fs_svm = SVC(kernel='linear', C=1.0)
-    fs_svm.fit(X_fs, y_fs)
-
+    #fs_svm = SVC(kernel='linear', C=1.0)
+    #fs_svm.fit(X_fs, y_fs)
+    classifier = RandomForestClassifier(n_estimators=50, random_state=42)
+    classifier.fit(X_fs, y_fs)
     # Perform cross-validation
-    scores = cross_val_score(fs_svm, dataset_selected, dataset_target, cv=5, scoring='accuracy')
+    scores = cross_val_score(classifier, dataset_selected, dataset_target, cv=5, scoring='accuracy')
 
     # Return the average accuracy across folds
     return scores.mean()
@@ -131,11 +132,24 @@ def mutate_individual(individual, mutation_prob):
             individual[i] = 1 - individual[i]  # Flip the bit
     return individual
 
-def tournament_selection(fs_dataset,fs_population, population_size, tournament_size):
+def tournament_selection(fs_dataset,fs_population, population_size, tournament_size, fitness_values):
+    """
+        Tournament selection: Select a subset of individuals from the population and choose the fittest individual from that subset.
+        This process is repeated to create the new population.
+
+        Parameters:
+        fs_population (list): The population of individuals
+        population_size (int): The number of individuals in the population
+        tournament_size (int): The number of individuals participating in each tournament
+        fitness_values (list): The fitness values of the individuals
+
+        Returns:
+        selected_population (list): The selected population of individuals
+    """
     selected_population = []
     for _ in range(population_size):
         tournament = random.sample(range(len(fs_population)), tournament_size)
-        fittest_index = max(tournament, key=lambda x: classfier(fs_dataset.iloc[:,:-1].values, fs_dataset.iloc[:,-1].values, fs_population[x]))
+        fittest_index = max(tournament, key=lambda x: fitness_values[x])
         selected_population.append(fs_population[fittest_index])
     return selected_population
 
@@ -203,8 +217,8 @@ def main():
     acc_li = []
 
     # load data
-    data_file = 'sonar.data'
-    columns_file = 'sonar.names'
+    data_file = 'wbcd.data' # wbcd.data  , sonar.data
+    columns_file = 'wbcd.names'    # wbcd.names  , sonar.names
     dataset = read_data(columns_file, data_file)
 
     for i in range(run_iteration):
@@ -230,7 +244,7 @@ def main():
             best_individuals = [fs_population[i] for i in elite_idx]
 
             # TOURNAMENT SELECTION
-            fs_population = tournament_selection(fs_dataset, fs_population, population_size, tournament_size)
+            fs_population = tournament_selection(fs_dataset, fs_population, population_size, tournament_size, fitness_values)
 
             # REPRODUCTION & CROSSOVER: Create a new population by reproducing the selected individuals
             new_population = []
