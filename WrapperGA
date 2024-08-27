@@ -169,11 +169,11 @@ def print_summary(FilterGA, mean_, std_):
     data_table = pd.DataFrame(data)
 
     # Create a new DataFrame with the mean and concatenate it with (data_table)
-    mean_row = pd.DataFrame({'': ['Mean'], 'FilterGA': [mean_]})
+    mean_row = pd.DataFrame({'': ['Mean'], 'WrapperGA': [mean_]})
     data_table = pd.concat([data_table, mean_row], ignore_index=True)
 
     # Create a new DataFrame with the stander deviation and concatenate it with (data_table)
-    std_row = pd.DataFrame({'': ['STD'], 'FilterGA': [std_] })
+    std_row = pd.DataFrame({'': ['STD'], 'WrapperGA': [std_] })
     data_table = pd.concat([data_table, std_row], ignore_index=True)
 
     return data_table
