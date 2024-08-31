@@ -9,16 +9,23 @@ from sklearn.svm import SVC
 import pandas as pd
 import math
 import time
+import os
 
 
 def read_data(column_file_name, data_file_name):
     """
         Extract data from file and return datset
     """
+    # Read file and extract data file
+    full_path = os.path.abspath(__file__) # Get the full path of the script     
+    script_directory = os.path.dirname(full_path) # Get the directory of the script
+    data_file = os.path.join(script_directory,data_file_name) 
+    columns_file = os.path.join(script_directory, column_file_name) # wbcd.names , sonar.names
+
     # Extract Column names --------------------------------------
     columns_name = []
-    with open(column_file_name,'r') as columns_file: 
-        columns = columns_file.readlines()
+    with open(columns_file,'r') as columns_file_: 
+        columns = columns_file_.readlines()
         for idx, line in enumerate(columns): # extract values
             if idx == 0: continue
             x = line.split()
@@ -26,7 +33,7 @@ def read_data(column_file_name, data_file_name):
     columns_name.append('class')   # add column for target column
 
     # Extract data from file and create dataset -----------------
-    dataset = pd.read_csv(data_file_name)
+    dataset = pd.read_csv(data_file)
     dataset.columns = columns_name
 
     return dataset
@@ -217,8 +224,8 @@ def main():
     acc_li = []
 
     # load data
-    data_file = 'wbcd.data' # wbcd.data  , sonar.data
-    columns_file = 'wbcd.names'    # wbcd.names  , sonar.names
+    data_file = 'sonar.data' # wbcd.data  , sonar.data
+    columns_file = 'sonar.names'    # wbcd.names  , sonar.names
     dataset = read_data(columns_file, data_file)
 
     for i in range(run_iteration):
